@@ -43,13 +43,16 @@ SCHEMA = "data_warehouse"
 @st.cache_resource
 def get_engine():
     raw_url = st.secrets["db"]["url"]
-    # psycopg3 requiere el prefijo postgresql+psycopg://
+    # Normalizar prefijo para psycopg3
     url = (raw_url
            .replace("postgresql+psycopg2://", "postgresql+psycopg://")
            .replace("postgresql://", "postgresql+psycopg://")
            .replace("postgres://", "postgresql+psycopg://"))
-    return create_engine(url, pool_pre_ping=True,
-                         connect_args={"sslmode": "require"})
+    # Agregar sslmode=require si no está ya en la URL
+    if "sslmode" not in url:
+        sep = "&" if "?" in url else "?"
+        url = url + sep + "sslmode=require"
+    return create_engine(url, pool_pre_ping=True)
 
 
 @st.cache_data(ttl=300)  # cache 5 min
