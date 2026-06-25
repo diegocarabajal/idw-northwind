@@ -42,8 +42,14 @@ SCHEMA = "data_warehouse"
 
 @st.cache_resource
 def get_engine():
-    url = st.secrets["db"]["url"]
-    return create_engine(url, pool_pre_ping=True)
+    raw_url = st.secrets["db"]["url"]
+    # psycopg3 requiere el prefijo postgresql+psycopg://
+    url = (raw_url
+           .replace("postgresql+psycopg2://", "postgresql+psycopg://")
+           .replace("postgresql://", "postgresql+psycopg://")
+           .replace("postgres://", "postgresql+psycopg://"))
+    return create_engine(url, pool_pre_ping=True,
+                         connect_args={"sslmode": "require"})
 
 
 @st.cache_data(ttl=300)  # cache 5 min
