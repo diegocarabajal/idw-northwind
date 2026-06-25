@@ -266,11 +266,38 @@ with tab_ventas:
         st.plotly_chart(fig_perf, use_container_width=True)
 
     with col_e:
-        df_emp = run_query(f"""
-            SELECT nombre_completo, monto_neto, total_pedidos, total_clientes, title, rank_empleado
-            FROM {SCHEMA}.dp_ventas_por_empleado
-            ORDER BY rank_empleado
-        """)
+        if anio_sel == "Todos":
+            _sql_emp = f"""
+                SELECT nombre_completo, monto_neto, total_pedidos, total_clientes, title, rank_empleado
+                FROM {SCHEMA}.dp_ventas_por_empleado
+                ORDER BY rank_empleado
+            """
+        else:
+            _sql_emp = f"""
+                WITH ventas_emp AS (
+                    SELECT
+                        f.sk_empleado,
+                        COUNT(DISTINCT f.nk_order_id)                                  AS total_pedidos,
+                        COUNT(DISTINCT f.sk_cliente)                                   AS total_clientes,
+                        COALESCE(SUM(f.monto_neto), 0)                                AS monto_neto,
+                        SUM(f.monto_neto) / NULLIF(COUNT(DISTINCT f.nk_order_id), 0)  AS monto_promedio
+                    FROM {SCHEMA}.dwa_fact_ventas f
+                    JOIN {SCHEMA}.dwa_dim_tiempo  t ON t.sk_tiempo = f.sk_tiempo
+                    WHERE t.anio = {anio_sel}
+                    GROUP BY f.sk_empleado
+                )
+                SELECT
+                    e.nombre_completo,
+                    COALESCE(v.monto_neto,     0) AS monto_neto,
+                    COALESCE(v.total_pedidos,  0) AS total_pedidos,
+                    COALESCE(v.total_clientes, 0) AS total_clientes,
+                    e.title,
+                    RANK() OVER (ORDER BY COALESCE(v.monto_neto, 0) DESC) AS rank_empleado
+                FROM {SCHEMA}.dwa_dim_empleado e
+                LEFT JOIN ventas_emp v ON v.sk_empleado = e.sk_empleado
+                ORDER BY rank_empleado
+            """
+        df_emp = run_query(_sql_emp)
         st.markdown("**Ranking de vendedores**")
         st.dataframe(
             df_emp.rename(columns={
@@ -290,14 +317,50 @@ with tab_ventas:
     # ── Mapa geográfico ────────────────────────────────────
     st.subheader("Distribución geográfica de ventas")
 
-    df_geo = run_query(f"""
-        SELECT country_name, monto_neto, total_clientes, total_pedidos,
-               pct_monto_global, latitude, longitude
-        FROM {SCHEMA}.dp_ventas_geografico
-        WHERE monto_neto > 0
-          AND latitude  IS NOT NULL
-          AND longitude IS NOT NULL
-    """)
+    if anio_sel == "Todos":
+        _sql_geo = f"""
+            SELECT country_name, monto_neto, total_clientes, total_pedidos,
+                   pct_monto_global, latitude, longitude
+            FROM {SCHEMA}.dp_ventas_geografico
+            WHERE monto_neto > 0
+              AND latitude  IS NOT NULL
+              AND longitude IS NOT NULL
+        """
+    else:
+        _sql_geo = f"""
+            WITH ventas_pais AS (
+                SELECT
+                    c.sk_pais,
+                    COUNT(DISTINCT c.sk_cliente)       AS total_clientes,
+                    COUNT(DISTINCT f.nk_order_id)      AS total_pedidos,
+                    COALESCE(SUM(f.monto_neto), 0)    AS monto_neto
+                FROM {SCHEMA}.dwa_dim_cliente   c
+                JOIN {SCHEMA}.dwa_fact_ventas   f ON f.sk_cliente  = c.sk_cliente
+                JOIN {SCHEMA}.dwa_dim_tiempo    t ON t.sk_tiempo   = f.sk_tiempo
+                WHERE c.sk_pais IS NOT NULL
+                  AND t.anio = {anio_sel}
+                GROUP BY c.sk_pais
+            ),
+            total_global AS (
+                SELECT COALESCE(SUM(monto_neto), 0) AS total FROM ventas_pais
+            )
+            SELECT
+                p.country_name,
+                COALESCE(v.monto_neto,     0)  AS monto_neto,
+                COALESCE(v.total_clientes, 0)  AS total_clientes,
+                COALESCE(v.total_pedidos,  0)  AS total_pedidos,
+                CASE WHEN g.total > 0
+                     THEN ROUND((COALESCE(v.monto_neto, 0) / g.total * 100)::NUMERIC, 4)
+                     ELSE 0 END                AS pct_monto_global,
+                p.latitude,
+                p.longitude
+            FROM {SCHEMA}.dwa_dim_pais   p
+            JOIN ventas_pais             v ON v.sk_pais  = p.sk_pais
+            CROSS JOIN total_global      g
+            WHERE p.latitude  IS NOT NULL
+              AND p.longitude IS NOT NULL
+        """
+    df_geo = run_query(_sql_geo)
 
     fig_map = px.scatter_geo(
         df_geo,
