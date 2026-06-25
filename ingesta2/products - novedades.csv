@@ -1,0 +1,4 @@
+productID,productName,supplierID,categoryID,quantityPerUnit,unitPrice,unitsInStock,unitsOnOrder,reorderLevel,discontinued
+6,Grandma's Boysenberry Spread,3,2,12 - 8 oz jars,27.00,80,0,25,0
+7,Uncle Bob's Organic Dried Pears,3,7,12 - 1 lb pkgs.,33.10,30,0,10,0
+12,Queso Manchego La Pastora,5,4,10 - 500 g pkgs.,41.20,94,0,0,0

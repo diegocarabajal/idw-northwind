@@ -1,0 +1,24 @@
+# ── Credenciales y datos sensibles ──────────────────────────
+pass_db.txt
+streamlit_app/.streamlit/secrets.toml
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+
+# ── Sistema operativo ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDEs ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Archivos grandes / innecesarios en el repo ────────────────
+Ejemplos de Tp/
